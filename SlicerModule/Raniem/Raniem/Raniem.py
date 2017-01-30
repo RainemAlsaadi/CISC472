@@ -3,6 +3,7 @@ import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
+import numpy
 
 #
 # Raniem
@@ -253,37 +254,95 @@ class RaniemTest(ScriptedLoadableModuleTest):
     self.test_Raniem1()
 
   def test_Raniem1(self):
-    self.delayDisplay("Starting the test")
     
+    # Create transform node for registration result (optional)
+
+    alphaToBeta = slicer.vtkMRMLLinearTransformNode()
+    alphaToBeta.SetName('ReferenceToRas')
+    slicer.mrmlScene.AddNode(alphaToBeta)
+
+    # Experiment parameters (start from here if you have alphaToBeta already)
+
+    N = 10         # Number of fiducials
+    Scale = 100.0  # Size of space where fiducial are placed
+    Sigma = 2.0    # Radius of random error
+
+    # Create first fiducial list
+
+    fromNormCoordinates = numpy.random.rand(N, 3) # An array of random numbers
+    noise = numpy.random.normal(0.0, Sigma, N*3)
+
+    # Create the two fiducial lists
+
+    alphaFids = slicer.vtkMRMLMarkupsFiducialNode()
+    alphaFids.SetName('ReferencePoints')
+    slicer.mrmlScene.AddNode(alphaFids)
+
+    betaFids = slicer.vtkMRMLMarkupsFiducialNode()
+    betaFids.SetName('RasPoints')
+    slicer.mrmlScene.AddNode(betaFids)
+    betaFids.GetDisplayNode().SetSelectedColor(1,1,0)
+
+    # vtkPoints type is needed for registration
+
+    alphaPoints = vtk.vtkPoints()
+    betaPoints = vtk.vtkPoints()
+
+    for i in range(N):
+      x = (fromNormCoordinates[i, 0] - 0.5) * Scale
+      y = (fromNormCoordinates[i, 1] - 0.5) * Scale
+      z = (fromNormCoordinates[i, 2] - 0.5) * Scale
+      numFids = alphaFids.AddFiducial(x, y, z)
+      numPoints = alphaPoints.InsertNextPoint(x, y, z)
+      xx = x+noise[i*3]
+      yy = y+noise[i*3+1]
+      zz = z+noise[i*3+2]
+      numFids = betaFids.AddFiducial(xx, yy, zz)
+      numPoints = betaPoints.InsertNextPoint(xx, yy, zz)
+
+    # Create landmark transform object that computes registration
+
+    landmarkTransform = vtk.vtkLandmarkTransform()
+    landmarkTransform.SetSourceLandmarks(alphaPoints)
+    landmarkTransform.SetTargetLandmarks(betaPoints)
+    landmarkTransform.SetModeToRigidBody()
+    landmarkTransform.Update()
+
+    alphaToBetaMatrix = vtk.vtkMatrix4x4()
+    landmarkTransform.GetMatrix( alphaToBetaMatrix )
+
+    det = alphaToBetaMatrix.Determinant()
+    if det < 1e-8:
+      print 'Unstable registration. Check input for collinear points.'
+
+    alphaToBeta.SetMatrixTransformToParent(alphaToBetaMatrix)
+
+    # Compute average point distance after registration
+
+    average = 0.0
+    numbersSoFar = 0
+
+    for i in range(N):
+      numbersSoFar = numbersSoFar + 1
+      a = alphaPoints.GetPoint(i)
+      pointA_Alpha = numpy.array(a)
+      pointA_Alpha = numpy.append(pointA_Alpha, 1)
+      pointA_Beta = alphaToBetaMatrix.MultiplyFloatPoint(pointA_Alpha)
+      b = betaPoints.GetPoint(i)
+      pointB_Beta = numpy.array(b)
+      pointB_Beta = numpy.append(pointB_Beta, 1)
+      distance = numpy.linalg.norm(pointA_Beta - pointB_Beta)
+      average = average + (distance - average) / numbersSoFar
+
+    print "Average distance after registration: " + str(average)
+
     createModelsLogic = slicer.modules.createmodels.logic()
-    ModelNode = createModelsLogic.CreateCoordinate(20,2)
-    ModelNode.SetName('NodeTransfer')
+    referenceModelNode = createModelsLogic.CreateCoordinate(20,2)
+    referenceModelNode.SetName('ReferenceCoordinateModel')
+    rasModelNode = createModelsLogic.CreateCoordinate(20,2)
+    rasModelNode.SetName('RasCoordinateModel')
 
+    referenceModelNode.GetDisplayNode().SetColor(0,0,1)
+    rasModelNode.GetDisplayNode().SetColor(1,0,0)
 
-# Change the color of models
-    ModelNode.GetDisplayNode().SetColor(1,0,0)
-# Create transform nodes
-    ModelToRas = slicer.vtkMRMLLinearTransformNode()
-    ModelToRas.SetName('ModelToRas')
-    slicer.mrmlScene.AddNode(ModelToRas)
-# Set transform of the transform node
-    ModelToRasTransform = vtk.vtkTransform()
-    ModelToRasTransform.PreMultiply() # This is default, but it makes explicit
-    ModelToRasTransform.Translate(0, 0, 0)
-    ModelToRasTransform.Update()
-    ModelToRas.SetAndObserveTransformToParent(ModelToRasTransform)
-# Transform the models with transform nodes
-    ModelNode.SetAndObserveTransformNodeID(ModelToRas.GetID())
-   
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests should exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
-
-    self.delayDisplay('Test passed!')
+    rasModelNode.SetAndObserveTransformNodeID(alphaToBeta.GetID())
