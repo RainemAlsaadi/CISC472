@@ -254,6 +254,8 @@ class RaniemTest(ScriptedLoadableModuleTest):
     self.test_Raniem1()
 
   def test_Raniem1(self):
+    #Note: Better to change alpha to reference, Beta to Ras and alphaToBeta
+    #to referenceToRas
     
     # Create transform node for registration result (optional)
 
@@ -346,3 +348,9 @@ class RaniemTest(ScriptedLoadableModuleTest):
     rasModelNode.GetDisplayNode().SetColor(1,0,0)
 
     rasModelNode.SetAndObserveTransformNodeID(alphaToBeta.GetID())
+    
+    # Compute TRE between Reference and Ras coordinate systems
+    targetPoint_Reference = numpy.array([0,0,0,1])
+    targetPoint_Ras = alphaToBetaMatrix.MultiplyFloatPoint(targetPoint_Reference)
+    d = numpy.linalg.norm(targetPoint_Reference- targetPoint_Ras)
+    print "TRE: " + str(d)
