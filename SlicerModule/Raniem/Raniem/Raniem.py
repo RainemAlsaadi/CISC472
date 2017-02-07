@@ -138,101 +138,41 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
 #
 
 class RaniemLogic(ScriptedLoadableModuleLogic):
-  """This class should implement all the actual
-  computation done by your module.  The interface
-  should be such that other python code can import
-  this class and make use of the functionality without
-  requiring an instance of the Widget.
-  Uses ScriptedLoadableModuleLogic base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+  # Added this function
+  def averageTransformedDistance(self,refPoints,rasPoints,referenceToRasMatrix):
+      average = 0.0
+      num = 0
+      
+      #Get the number of points
+      numberOfPoints= refPoints.GetNumberOfPoints()
+      bNum = rasPoints.GetNumberOfPoints()
+      
+      if numberOfPoints != bNum:
+        logging.error('Number of points in two lists do not match')
+        return -1
+      
+      for i in range(numberOfPoints):
+        num = num + 1
+        a = refPoints.GetPoint(i)
+        pointA_Reference = numpy.array(a)
+        pointA_Reference = numpy.append(pointA_Reference, 1)
+        pointA_Ras = referenceToRasMatrix.MultiplyFloatPoint(pointA_Reference)
+        b = rasPoints.GetPoint(i)
+        pointB_Ras = numpy.array(b)
+        pointB_Ras = numpy.append(pointB_Ras, 1)
+        distance = numpy.linalg.norm(pointA_Ras - pointB_Ras)
+        average = average + (distance - average) / num
 
-  def hasImageData(self,volumeNode):
-    """This is an example logic method that
-    returns true if the passed in volume
-    node has valid image data
-    """
-    if not volumeNode:
-      logging.debug('hasImageData failed: no volume node')
-      return False
-    if volumeNode.GetImageData() is None:
-      logging.debug('hasImageData failed: no image data in volume node')
-      return False
-    return True
-
-  def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
-    """Validates if the output is not the same as input
-    """
-    if not inputVolumeNode:
-      logging.debug('isValidInputOutputData failed: no input volume node defined')
-      return False
-    if not outputVolumeNode:
-      logging.debug('isValidInputOutputData failed: no output volume node defined')
-      return False
-    if inputVolumeNode.GetID()==outputVolumeNode.GetID():
-      logging.debug('isValidInputOutputData failed: input and output volume is the same. Create a new volume for output to avoid this error.')
-      return False
-    return True
-
-  def takeScreenshot(self,name,description,type=-1):
-    # show the message even if not taking a screen shot
-    slicer.util.delayDisplay('Take screenshot: '+description+'.\nResult is available in the Annotations module.', 3000)
-
-    lm = slicer.app.layoutManager()
-    # switch on the type to get the requested window
-    widget = 0
-    if type == slicer.qMRMLScreenShotDialog.FullLayout:
-      # full layout
-      widget = lm.viewport()
-    elif type == slicer.qMRMLScreenShotDialog.ThreeD:
-      # just the 3D window
-      widget = lm.threeDWidget(0).threeDView()
-    elif type == slicer.qMRMLScreenShotDialog.Red:
-      # red slice window
-      widget = lm.sliceWidget("Red")
-    elif type == slicer.qMRMLScreenShotDialog.Yellow:
-      # yellow slice window
-      widget = lm.sliceWidget("Yellow")
-    elif type == slicer.qMRMLScreenShotDialog.Green:
-      # green slice window
-      widget = lm.sliceWidget("Green")
-    else:
-      # default to using the full window
-      widget = slicer.util.mainWindow()
-      # reset the type so that the node is set correctly
-      type = slicer.qMRMLScreenShotDialog.FullLayout
-
-    # grab and convert to vtk image data
-    qpixMap = qt.QPixmap().grabWidget(widget)
-    qimage = qpixMap.toImage()
-    imageData = vtk.vtkImageData()
-    slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
-
-    annotationLogic = slicer.modules.annotations.logic()
-    annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
-
-  def run(self, inputVolume, outputVolume, imageThreshold, enableScreenshots=0):
-    """
-    Run the actual algorithm
-    """
-
-    if not self.isValidInputOutputData(inputVolume, outputVolume):
-      slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
-      return False
-
-    logging.info('Processing started')
-
-    # Compute the thresholded output volume using the Threshold Scalar Volume CLI module
-    cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
-    cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True)
-
-    # Capture screenshot
-    if enableScreenshots:
-      self.takeScreenshot('RaniemTest-Start','MyScreenshot',-1)
-
-    logging.info('Processing completed')
-
-    return True
+      return average
+    
+  #Added this function  
+  def rigidRegistration(self,refPoints,rasPoints,referenceToRasMatrix):
+    landmarkTransform = vtk.vtkLandmarkTransform()
+    landmarkTransform.SetSourceLandmarks(refPoints)
+    landmarkTransform.SetTargetLandmarks(rasPoints)
+    landmarkTransform.SetModeToRigidBody()
+    landmarkTransform.Update()
+    landmarkTransform.GetMatrix(referenceToRasMatrix)
 
 
 class RaniemTest(ScriptedLoadableModuleTest):
@@ -252,105 +192,89 @@ class RaniemTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
     self.test_Raniem1()
-
-  def test_Raniem1(self):
-    #Note: Better to change alpha to reference, Beta to Ras and alphaToBeta
-    #to referenceToRas
     
-    # Create transform node for registration result (optional)
+  #Added this function to generate points  
+  def generatePoints(self, numPoints, Scale, Sigma):
+    rasFids = slicer.util.getNode('RasPoints')
+    if rasFids == None:
+      rasFids = slicer.vtkMRMLMarkupsFiducialNode()
+      rasFids.SetName('RasPoints')
+      slicer.mrmlScene.AddNode(rasFids)
+    rasFids.RemoveAllMarkups()
 
-    alphaToBeta = slicer.vtkMRMLLinearTransformNode()
-    alphaToBeta.SetName('ReferenceToRas')
-    slicer.mrmlScene.AddNode(alphaToBeta)
+    refFids = slicer.util.getNode('ReferencePoints')
+    if refFids == None:
+      refFids = slicer.vtkMRMLMarkupsFiducialNode()
+      refFids.SetName('ReferencePoints')
+      slicer.mrmlScene.AddNode(refFids)
+    refFids.RemoveAllMarkups()
+    refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
 
-    # Experiment parameters (start from here if you have alphaToBeta already)
+    fromNormCoordinates = numpy.random.rand(numPoints, 3)
+    noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
 
-    N = 10         # Number of fiducials
-    Scale = 100.0  # Size of space where fiducial are placed
-    Sigma = 2.0    # Radius of random error
-
-    # Create first fiducial list
-
-    fromNormCoordinates = numpy.random.rand(N, 3) # An array of random numbers
-    noise = numpy.random.normal(0.0, Sigma, N*3)
-
-    # Create the two fiducial lists
-
-    alphaFids = slicer.vtkMRMLMarkupsFiducialNode()
-    alphaFids.SetName('ReferencePoints')
-    slicer.mrmlScene.AddNode(alphaFids)
-
-    betaFids = slicer.vtkMRMLMarkupsFiducialNode()
-    betaFids.SetName('RasPoints')
-    slicer.mrmlScene.AddNode(betaFids)
-    betaFids.GetDisplayNode().SetSelectedColor(1,1,0)
-
-    # vtkPoints type is needed for registration
-
-    alphaPoints = vtk.vtkPoints()
-    betaPoints = vtk.vtkPoints()
-
-    for i in range(N):
+    for i in range(numPoints):
       x = (fromNormCoordinates[i, 0] - 0.5) * Scale
       y = (fromNormCoordinates[i, 1] - 0.5) * Scale
       z = (fromNormCoordinates[i, 2] - 0.5) * Scale
-      numFids = alphaFids.AddFiducial(x, y, z)
-      numPoints = alphaPoints.InsertNextPoint(x, y, z)
-      xx = x+noise[i*3]
-      yy = y+noise[i*3+1]
-      zz = z+noise[i*3+2]
-      numFids = betaFids.AddFiducial(xx, yy, zz)
-      numPoints = betaPoints.InsertNextPoint(xx, yy, zz)
+      rasFids.AddFiducial(x, y, z)#For visualization
+      xx = x + noise[i * 3]
+      yy = y + noise[i * 3 + 1]
+      zz = z + noise[i * 3 + 2]
+      refFids.AddFiducial(xx, yy, zz)#For visualization
+      
+  #Added this function    
+  def fiducialsToPoints(self,fiducials,points):
+    n = fiducials.GetNumberOfFiducials()
+    for i in range (n): 
+      p = [0,0,0]
+      fiducials.GetNthFiducialPosition(i,p)
+      points.InsertNextPoint(p[0],p[1],p[2])
 
-    # Create landmark transform object that computes registration
 
-    landmarkTransform = vtk.vtkLandmarkTransform()
-    landmarkTransform.SetSourceLandmarks(alphaPoints)
-    landmarkTransform.SetTargetLandmarks(betaPoints)
-    landmarkTransform.SetModeToRigidBody()
-    landmarkTransform.Update()
-
-    alphaToBetaMatrix = vtk.vtkMatrix4x4()
-    landmarkTransform.GetMatrix( alphaToBetaMatrix )
-
-    det = alphaToBetaMatrix.Determinant()
-    if det < 1e-8:
-      print 'Unstable registration. Check input for collinear points.'
-
-    alphaToBeta.SetMatrixTransformToParent(alphaToBetaMatrix)
-
-    # Compute average point distance after registration
-
-    average = 0.0
-    numbersSoFar = 0
-
-    for i in range(N):
-      numbersSoFar = numbersSoFar + 1
-      a = alphaPoints.GetPoint(i)
-      pointA_Alpha = numpy.array(a)
-      pointA_Alpha = numpy.append(pointA_Alpha, 1)
-      pointA_Beta = alphaToBetaMatrix.MultiplyFloatPoint(pointA_Alpha)
-      b = betaPoints.GetPoint(i)
-      pointB_Beta = numpy.array(b)
-      pointB_Beta = numpy.append(pointB_Beta, 1)
-      distance = numpy.linalg.norm(pointA_Beta - pointB_Beta)
-      average = average + (distance - average) / numbersSoFar
-
-    print "Average distance after registration: " + str(average)
+  def test_Raniem1(self):
+    referenceToRas = slicer.vtkMRMLLinearTransformNode()
+    referenceToRas.SetName('ReferenceToRas')
+    slicer.mrmlScene.AddNode(referenceToRas)
 
     createModelsLogic = slicer.modules.createmodels.logic()
-    referenceModelNode = createModelsLogic.CreateCoordinate(20,2)
-    referenceModelNode.SetName('ReferenceCoordinateModel')
     rasModelNode = createModelsLogic.CreateCoordinate(20,2)
     rasModelNode.SetName('RasCoordinateModel')
+    refModelNode = createModelsLogic.CreateCoordinate(20,2)
+    refModelNode.SetName('ReferenceCoordinateModel')
+    refModelNode.SetAndObserveTransformNodeID(referenceToRas.GetID())
 
-    referenceModelNode.GetDisplayNode().SetColor(0,0,1)
     rasModelNode.GetDisplayNode().SetColor(1,0,0)
+    refModelNode.GetDisplayNode().SetColor(0,1,0)
 
-    rasModelNode.SetAndObserveTransformNodeID(alphaToBeta.GetID())
+    # vtkPoints type is needed for registration
+
+    rasPoints = vtk.vtkPoints()
+    refPoints = vtk.vtkPoints()
     
-    # Compute TRE between Reference and Ras coordinate systems
-    targetPoint_Reference = numpy.array([0,0,0,1])
-    targetPoint_Ras = alphaToBetaMatrix.MultiplyFloatPoint(targetPoint_Reference)
-    d = numpy.linalg.norm(targetPoint_Reference- targetPoint_Ras)
-    print "TRE: " + str(d)
+    logic = RaniemLogic()
+    
+    for i in range(10):
+      numPoints = 10 + i * 5
+      sigma = 3.0
+      scale = 100.0
+      self.generatePoints(numPoints, scale, sigma)
+      rasFids = slicer.util.getNode('RasPoints')
+      refFids = slicer.util.getNode('ReferencePoints')
+      self.fiducialsToPoints(rasFids, rasPoints)
+      self.fiducialsToPoints(refFids, refPoints)
+      referenceToRasMatrix = vtk.vtkMatrix4x4()
+      logic.rigidRegistration(refPoints, rasPoints, referenceToRasMatrix)
+      det = referenceToRasMatrix.Determinant()
+      if det < 1e-8:
+        logging.error('All points in one line')
+        continue
+      referenceToRas.SetMatrixTransformToParent(referenceToRasMatrix)
+      avgDistance = logic.averageTransformedDistance(refPoints, rasPoints, referenceToRasMatrix)
+      print "Average distance: " + str(avgDistance)
+      targetPoint_Ras = numpy.array([0,0,0,1])
+      targetPoint_Reference = referenceToRasMatrix.MultiplyFloatPoint(targetPoint_Ras)
+      targetPoint_Reference = numpy.array(targetPoint_Reference)
+      tre = numpy.linalg.norm(targetPoint_Ras - targetPoint_Reference)
+      print "TRE: " + str(tre)
+      print ""
