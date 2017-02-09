@@ -256,12 +256,15 @@ class RaniemTest(ScriptedLoadableModuleTest):
     
     logic = RaniemLogic()
     
+    numSamples=10
+    
     # Create an Array Node and add some data for the chart view 
     dn2 = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
     treArray = dn2.GetArray()
-    treArray.SetNumberOfTuples(60)
+    #Reserve location in memory 
+    treArray.SetNumberOfTuples(numSamples)
     
-    for i in range(10):
+    for i in range(numSamples):
       numPoints = 10 + i * 5
       sigma = 3.0
       scale = 100.0
