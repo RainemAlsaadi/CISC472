@@ -5,6 +5,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import numpy
 import math
+import slicer
 
 #
 # Raniem
@@ -255,7 +256,10 @@ class RaniemTest(ScriptedLoadableModuleTest):
     
     logic = RaniemLogic()
     
-    tre_list = []
+    # Create an Array Node and add some data for the chart view 
+    dn2 = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
+    treArray = dn2.GetArray()
+    treArray.SetNumberOfTuples(60)
     
     for i in range(10):
       numPoints = 10 + i * 5
@@ -279,11 +283,14 @@ class RaniemTest(ScriptedLoadableModuleTest):
       targetPoint_Reference = referenceToRasMatrix.MultiplyFloatPoint(targetPoint_Ras)
       targetPoint_Reference = numpy.array(targetPoint_Reference)
       tre = numpy.linalg.norm(targetPoint_Ras - targetPoint_Reference)
-      tre_list.append(tre)
+      
+      #Added these 3 lines for the chart view 
+      treArray.SetComponent(i, 0, numPoints)
+      treArray.SetComponent(i, 1, tre)
+      treArray.SetComponent(i, 2, 0)
       print "TRE: " + str(tre)
       print ""
       
-    
     #Using a chart view, plot TRE as a function of number of points
     
     #Switch to a layout (24) that contains a Chart View to initiate the construction of the widget and Chart View Node
@@ -296,21 +303,12 @@ class RaniemTest(ScriptedLoadableModuleTest):
     cvns = slicer.mrmlScene.GetNodesByClass('vtkMRMLChartViewNode')
     cvns.InitTraversal()
     cvn = cvns.GetNextItemAsObject()
-    
-    # Create an Array Node and add some data
-    dn = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
-    a = dn.GetArray()
-    a.SetNumberOfTuples(10)
-    x = range(0, 10)
-    for i in range(len(x)):
-        a.SetComponent(i, 0, x[i])
-        a.SetComponent(i, 1, tre_list[i])
-        a.SetComponent(i, 2, 0)
-    
+  
     #Create chart node
     cn = slicer.mrmlScene.AddNode(slicer.vtkMRMLChartNode())
+    
     # Add the Array Nodes to the Chart. The first argument is a string used for the legend and to refer to the Array when setting properties.
-    cn.AddArray('TRE',dn.GetID())
+    cn.AddArray('TRE',dn2.GetID())
 
     # Set a few properties on the Chart. The first argument is a string identifying which Array to assign the property.
     # 'default' is used to assign a property to the Chart itself (as opposed to an Array Node).
