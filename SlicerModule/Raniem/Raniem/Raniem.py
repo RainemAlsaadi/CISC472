@@ -58,44 +58,45 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
     #
     # input volume selector
     #
-    
- #   self.inputSelector = slicer.qMRMLNodeComboBox()
- #   self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
- #   self.inputSelector.selectNodeUponCreation = True
- #   self.inputSelector.addEnabled = False
- #   self.inputSelector.removeEnabled = False
- #   self.inputSelector.noneEnabled = False
- #   self.inputSelector.showHidden = False
- #   self.inputSelector.showChildNodeTypes = False
- #   self.inputSelector.setMRMLScene( slicer.mrmlScene )
- #   self.inputSelector.setToolTip( "Pick the input to the algorithm." )
- #   parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
+    '''
+    self.inputSelector = slicer.qMRMLNodeComboBox()
+    self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.inputSelector.selectNodeUponCreation = True
+    self.inputSelector.addEnabled = False
+    self.inputSelector.removeEnabled = False
+    self.inputSelector.noneEnabled = False
+    self.inputSelector.showHidden = False
+    self.inputSelector.showChildNodeTypes = False
+    self.inputSelector.setMRMLScene( slicer.mrmlScene )
+    self.inputSelector.setToolTip( "Pick the input to the algorithm." )
+    parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
 
     #
     # output volume selector
     #
- #   self.outputSelector = slicer.qMRMLNodeComboBox()
- #   self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
- #   self.outputSelector.selectNodeUponCreation = True
- #   self.outputSelector.addEnabled = True
- #   self.outputSelector.removeEnabled = True
- #   self.outputSelector.noneEnabled = True
- #   self.outputSelector.showHidden = False
- #   self.outputSelector.showChildNodeTypes = False
- #   self.outputSelector.setMRMLScene( slicer.mrmlScene )
- #   self.outputSelector.setToolTip( "Pick the output to the algorithm." )
- #   parametersFormLayout.addRow("Output Volume: ", self.outputSelector)
+    self.outputSelector = slicer.qMRMLNodeComboBox()
+    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.outputSelector.selectNodeUponCreation = True
+    self.outputSelector.addEnabled = True
+    self.outputSelector.removeEnabled = True
+    self.outputSelector.noneEnabled = True
+    self.outputSelector.showHidden = False
+    self.outputSelector.showChildNodeTypes = False
+    self.outputSelector.setMRMLScene( slicer.mrmlScene )
+    self.outputSelector.setToolTip( "Pick the output to the algorithm." )
+    parametersFormLayout.addRow("Output Volume: ", self.outputSelector)
 
     #
     # threshold value
     #
- #   self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
- #   self.imageThresholdSliderWidget.singleStep = 0.1
- #   self.imageThresholdSliderWidget.minimum = -100
- #   self.imageThresholdSliderWidget.maximum = 100
- #   self.imageThresholdSliderWidget.value = 0.5
- #   self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
- #   parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
+    self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
+    self.imageThresholdSliderWidget.singleStep = 0.1
+    self.imageThresholdSliderWidget.minimum = -100
+    self.imageThresholdSliderWidget.maximum = 100
+    self.imageThresholdSliderWidget.value = 0.5
+    self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
+    parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
+    '''
 
     #
     # check box to trigger taking screen shots for later use in tutorials
@@ -104,7 +105,14 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
     self.enableScreenshotsFlagCheckBox.checked = 0
     self.enableScreenshotsFlagCheckBox.setToolTip("If checked, take screen shots for tutorials. Use Save Data to write them to disk.")
     parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)
-
+    
+    #
+    # Apply Button
+    #
+    self.applyButton = qt.QPushButton("Apply")
+    self.applyButton.toolTip = "Run the algorithm."
+    self.applyButton.enabled = False
+    parametersFormLayout.addRow(self.applyButton)
 
     # emSelector
     #
@@ -114,28 +122,19 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
     parametersFormLayout.addRow("Em Tool Tip Transform: ", self.emSelector)
 
     #
-    # opSelector
+    # opticalSelector
     #
-    self.opSelector = slicer.qMRMLNodeComboBox()
-    self.opSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
-    self.opSelector.setMRMLScene(slicer.mrmlScene)
-    parametersFormLayout.addRow("Opical Tool Tip Transform: ", self.opSelector)
-
-
-    #
-    # Apply Button
-    #
-    self.applyButton = qt.QPushButton("Apply")
-    self.applyButton.toolTip = "Run the algorithm."
-    self.applyButton.enabled = False
-    parametersFormLayout.addRow(self.applyButton)
+    self.opticalSelector = slicer.qMRMLNodeComboBox()
+    self.opticalSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
+    self.opticalSelector.setMRMLScene(slicer.mrmlScene)
+    parametersFormLayout.addRow("Optical Tool Tip Transform: ", self.opticalSelector)
 
     # connections
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     #self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
     #self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
     self.emSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    self.opSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+    self.opticalSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -147,24 +146,24 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
     pass
 
 
- #def onSelect(self):
- #   self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
-
   def onSelect(self):
-    self.applyButton.enabled = self.emSelector.currentNode() and self.opSelector.currentNode()
+    #self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
+    self.applyButton.enabled = self.emSelector.currentNode() and self.opticalSelector.currentNode()
     
- # def onApplyButton(self):
- #   logic = RaniemLogic()
- #   enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
- #   imageThreshold = self.imageThresholdSliderWidget.value
- #   logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
-
+    '''   
   def onApplyButton(self):
     logic = RaniemLogic()
+    enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
+    imageThreshold = self.imageThresholdSliderWidget.value
+    logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
+    '''
+
+  def onApplyButton(self):
+ #   logic = RaniemLogic()
     emTipTransform = self.emSelector.currentNode()
     if emTipTransform == None:
       return
-    opTipTransform = self.opSelector.currentNode()
+    opTipTransform = self.opticalSelector.currentNode()
     if opTipTransform == None:
       return
 
@@ -177,25 +176,23 @@ class RaniemWidget(ScriptedLoadableModuleWidget):
       emTipTransform = self.emSelector.currentNode()
       if emTipTransform == None:
           return
-      opTipTransform = self.opSelector.currentNode()
+      opTipTransform = self.opticalSelector.currentNode()
       if opTipTransform == None:
           return
 
-      emTip_emTip = [0,0,0,1]
-      opTip_opTip = [0,0,0,1]
+      emTip_EmTip = [0,0,0,1]
+      opTip_OpTip = [0,0,0,1]
 
       emTipToRasMatrix = vtk.vtkMatrix4x4()
       emTipTransform.GetMatrixTransformToWorld(emTipToRasMatrix)
-      emTip_Ras = numpy.array(emTipToRasMatrix.MultiplyFloatPoint(emTip_emTip))
+      emTip_Ras = numpy.array(emTipToRasMatrix.MultiplyFloatPoint(emTip_EmTip))
 
       opTipToRasMatrix = vtk.vtkMatrix4x4()
       opTipTransform.GetMatrixTransformToWorld(opTipToRasMatrix)
-      opTip_Ras = numpy.array(opTipToRasMatrix.MultiplyFloatPoint(opTip_opTip))
+      opTip_Ras = numpy.array(opTipToRasMatrix.MultiplyFloatPoint(opTip_OpTip))
 
       distance = numpy.linalg.norm(emTip_Ras - opTip_Ras)
-      print "distance between tips: " + str(distance)
-      return
-
+      print distance
 
 #
 # RaniemLogic
